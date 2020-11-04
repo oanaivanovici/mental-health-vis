@@ -1,0 +1,290 @@
+---
+title: "Mental Health Disorders in Australia."
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+<p>Data Source: [1] H. Ritchie and M. Roser, 'Mental Health', Our World in Data, 2018. [Online]. Available: https://ourworldindata.org/mental-health. [Accessed: 11- Jun- 2020].</p>
+
+<style> p {font-size: 12px;} </style>
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(forcats)
+library(tidyr)
+library(rsconnect)
+
+
+# load csv files
+population_share <- read.csv('share-with-mental-and-substance-disorders.csv')
+prevalence_of_disorders <- read.csv('prevalence-by-mental-and-substance-use-disorder.csv')
+disorders_by_gender <- read.csv('share-with-mental-or-substance-disorders-by-sex.csv')
+suicide_rates <- read.csv('suicide-rates-vs-prevalence-of-mental-and-substance-use-disorders.csv')
+depression_by_country <- read.csv('depression-by-level-of-education-employment.csv')
+anxiety_gender <- read.csv("prevalence-of-anxiety-disorders-males-vs-females.csv")
+bipolar_gender <- read.csv("prevalence-of-bipolar-disorder-in-males-vs-females.csv")
+depression_gender <- read.csv("prevalence-of-depression-males-vs-females.csv")
+eating_disorder_gender <- read.csv("prevalence-of-eating-disorders-in-males-vs-females.csv")
+schizophrenia_gender <- read.csv("prevalence-of-schizophrenia-in-males-vs-females.csv")
+
+
+# drop the Code column - redundant
+drop_code <- c("Code")
+population_share <- population_share[ , !(names(population_share) %in% drop_code)]
+depression_by_country <- depression_by_country[, !(names(depression_by_country) %in% drop_code)]
+disorders_by_gender <- disorders_by_gender[, !(names(disorders_by_gender) %in% drop_code)]
+prevalence_of_disorders <- prevalence_of_disorders[, !(names(prevalence_of_disorders) %in% drop_code)]
+suicide_rates <- suicide_rates[, !(names(suicide_rates) %in% drop_code)]
+anxiety_gender <- anxiety_gender[, !(names(anxiety_gender) %in% drop_code)]
+bipolar_gender <- bipolar_gender[, !(names(bipolar_gender) %in% drop_code)]
+depression_gender <- depression_gender[, !(names(depression_gender) %in% drop_code)]
+eating_disorder_gender <- eating_disorder_gender[, !(names(eating_disorder_gender) %in% drop_code)]
+schizophrenia_gender <- schizophrenia_gender[, !(names(schizophrenia_gender) %in% drop_code)]
+
+
+# rename columns
+old_names_pop_share = c("Entity", "Prevalence...Mental.and.substance.use.disorders...Sex..Both...Age..Age.standardized..Percent.....")
+new_names_pop_share = c("Country", "Prevalence_percent")
+population_share <- population_share %>% rename_at(vars(old_names_pop_share), ~ new_names_pop_share)
+
+new_names_depression = c("Country", "All_education_seeking_employment", "All_education_employed", "All_education_total", "Below_upper_secondary_seeking_employment", "Below_upper_secondary_employed", "Below_upper_secondary_total", "Tertiary_seeking_employment", "Tertiary_employed", "Tertiary_total", "Upper/Post_secondary_seeking_employment", "Upper/Post_secondary_employed", "Upper/Post_secondary_total")
+old_names_depression = c("Entity", "All.levels..active.....", "All.levels..employed.....", "All.levels..total.....", "Below.upper.secondary..active.....", "Below.upper.secondary..employed.....", "Below.upper.secondary..total.....", "Tertiary..active.....", "Tertiary..employed.....", "Tertiary..total.....", "Upper.secondary...post.secondary.non.tertiary..active.....", "Upper.secondary...post.secondary.non.tertiary..employed.....", "Upper.secondary...post.secondary.non.tertiary..total.....")
+depression_by_country <- depression_by_country %>% rename_at(vars(old_names_depression), ~ new_names_depression)
+
+old_names_gender = c("Entity", "Share.of.males....", "Share.of.females....", "Total.population..Gapminder.")
+new_names_gender = c("Country", "Share_males", "Share_females", "Total_population")
+disorders_by_gender <- disorders_by_gender %>% rename_at(vars(old_names_gender), ~ new_names_gender)
+
+old_names_disorders = c("Entity", "Schizophrenia....", "Bipolar.disorder....", "Eating.disorders....", "Anxiety.disorders....", "Drug.use.disorders....", "Depression....", "Alcohol.use.disorders....")
+new_names_disorders = c("Country", "Schizophrenia", "Bipolar_disorder", "Eating_disorders", "Anxiety_disorders", "Drug_use_disorders", "Depression", "Alcohol_use_disorders")
+prevalence_of_disorders <- prevalence_of_disorders %>% rename_at(vars(old_names_disorders), ~ new_names_disorders)
+
+old_names_suicide = c("Entity", "Suicide.rate..deaths.per.100.000.", "Mental.and.substance.use.disorder.rate..number.suffering.per.100.000.", "Population")
+new_names_suicide = c("Country", "Suicide_rate_deaths_per_100k", "Mental_and_substance_disorder_per_100k", "Total_population")
+suicide_rates <- suicide_rates %>% rename_at(vars(old_names_suicide), ~ new_names_suicide)
+
+old_names_anxiety = c("Entity", "Share.of.males....", "Share.of.females....")
+new_names_anxiety = c("Country", "Share_males_anxiety", "Share_females_anxiety")
+anxiety_gender <- anxiety_gender %>% rename_at(vars(old_names_anxiety), ~ new_names_anxiety)
+anxiety_gender <- anxiety_gender[, !(names(anxiety_gender) %in% c("Total.population..Gapminder."))]
+
+# same old names as anxiety
+new_names_bipolar = c("Country", "Share_males_bipolar", "Share_females_bipolar")
+bipolar_gender <- bipolar_gender %>% rename_at(vars(old_names_anxiety), ~ new_names_bipolar)
+bipolar_gender <- bipolar_gender[, !(names(bipolar_gender) %in% c("Population"))]
+
+old_names_depression = c("Entity", "Prevalence.in.females....", "Prevalence.in.males....")
+new_names_depression = c("Country", "Share_females_depression", "Share_males_depression")
+depression_gender <- depression_gender %>% rename_at(vars(old_names_depression), ~ new_names_depression)
+depression_gender <- depression_gender[, !(names(depression_gender) %in% c("Population"))]
+
+# same old names as anxiety
+new_names_eating_disorder = c("Country", "Share_males_eating_disorder", "Share_females_eating_disorder")
+eating_disorder_gender <- eating_disorder_gender %>% rename_at(vars(old_names_anxiety), ~ new_names_eating_disorder)
+eating_disorder_gender <- eating_disorder_gender[, !(names(eating_disorder_gender) %in% c("Total.population..Gapminder."))]
+
+# same old names as anxiety
+new_names_schizophrenia = c("Country", "Share_males_schizophrenia", "Share_females_schizophrenia")
+schizophrenia_gender <- schizophrenia_gender %>% rename_at(vars(old_names_anxiety), ~ new_names_schizophrenia)
+schizophrenia_gender <- schizophrenia_gender[, !(names(schizophrenia_gender) %in% c("Population"))]
+
+
+# combine dataframes
+suicide_rates_after1990 <- suicide_rates %>% mutate(Year = as.numeric(levels(Year))[Year])
+suicide_rates_after1990 <- suicide_rates_after1990 %>% filter(Year >= 1990)
+drop_rendundant <- c("Suicide_rate_deaths_per_100k", "Mental_and_substance_disorder_per_100k")
+complete_population <- suicide_rates_after1990[ , !(names(suicide_rates_after1990) %in% drop_rendundant)]
+
+disorders_by_gender_after1990 <- disorders_by_gender  %>% filter(Year >= 1990)
+
+complete_disorder_by_gender <- inner_join(disorders_by_gender_after1990, complete_population, by=c('Country','Year'))
+drop_population_x = c("Total_population.x")
+complete_disorder_by_gender <- complete_disorder_by_gender[, !(names(complete_disorder_by_gender) %in% drop_population_x)]
+names(complete_disorder_by_gender)[names(complete_disorder_by_gender)=="Total_population.y"] <- "Total_population"
+
+prevalence_by_gender <- left_join(population_share, complete_disorder_by_gender, by=c("Country", "Year"))
+names(prevalence_by_gender)[names(prevalence_by_gender) == "Prevalence_percent"] <- "Prevalence_both_genders"
+
+prevalence_all_disorders_and_genders <- left_join(prevalence_by_gender, prevalence_of_disorders, by=c("Country", "Year"))
+
+suicide_rates_1990_clean <- suicide_rates_after1990 %>% drop_na()
+
+disorders_clean <- prevalence_all_disorders_and_genders
+
+# no need for conversion
+anxiety_gender_aus <- anxiety_gender %>% filter(Year >= 1990 & Country == "Australia")
+
+bipolar_gender_aus <- bipolar_gender %>% mutate(Year = as.numeric(levels(Year))[Year])
+bipolar_gender_aus <- bipolar_gender_aus %>% filter(Year >= 1990 & Country == "Australia")
+
+depression_gender_aus <- depression_gender %>% mutate(Year = as.numeric(levels(Year))[Year])
+depression_gender_aus <- depression_gender_aus %>% filter(Year >= 1990 & Country == "Australia")
+
+# no need for conversion
+eating_disorder_gender_aus <- eating_disorder_gender %>% filter(Year >= 1990 & Country == "Australia")
+
+schizophrenia_gender_aus <- schizophrenia_gender %>% mutate(Year = as.numeric(levels(Year))[Year])
+schizophrenia_gender_aus <- schizophrenia_gender_aus %>% filter(Year >= 1990 & Country == "Australia")
+
+disorder_gender_aus <- complete_disorder_by_gender %>% filter(Year >= 1990 & Country == "Australia")
+disorder_gender_aus <- disorder_gender_aus[, !(names(disorder_gender_aus) %in% c("Total_population"))]
+old_names_disorder = c("Share_males", "Share_females")
+new_names_disorder = c("Share_males_total", "Share_females_total")
+disorder_gender_aus <- disorder_gender_aus %>% rename_at(vars(old_names_disorder), ~ new_names_disorder)
+
+bipolar_gender_aus <- bipolar_gender_aus %>% drop_na()
+depression_gender_aus <- depression_gender_aus %>% drop_na()
+
+all_disorders_by_gender_aus = left_join(disorder_gender_aus, anxiety_gender_aus, by = c("Country", "Year")) %>% left_join(bipolar_gender_aus, by = c("Country", "Year")) %>% left_join(depression_gender_aus, by = c("Country", "Year")) %>% left_join(eating_disorder_gender_aus, by = c("Country", "Year")) %>% left_join(schizophrenia_gender_aus, by = c("Country", "Year"))
+
+```
+
+Row {data-height=550}
+-----------------------------------------------------------------------
+
+### Percentage of Population Affected by Mental Health Disorders in Australia between 1990 and 2017
+
+```{r}
+
+disorders_australia <- disorders_clean %>% filter(Country == "Australia")
+
+# source: Chapter 8 notes, section 8.3.6 Custom Controls, sub-section 8.3.6.1 Range Selectors and Buttons. Please note, because the material used is not publicly available, it cannot be referenced properly using IEEE or other reference style.
+
+# variable menu
+updatemenus <- list(
+  list(
+    active = 0,
+    x = -.125,
+    type = 'dropdown',
+    buttons = list(
+      list(
+        label = "All Disorders",
+        method = "update",
+        args = list(list(visible = c(TRUE, "legendonly", "legendonly", "legendonly", 
+                                     "legendonly", "legendonly", "legendonly", "legendonly")))),
+      list(
+        label = "Schizophrenia",
+        method = "update",
+        args = list(list(visible = c("legendonly", TRUE, "legendonly", "legendonly", 
+                                     "legendonly", "legendonly", "legendonly", "legendonly")))),
+      list(
+        label = "Bipolar Disorder",
+        method = "update",
+        args = list(list(visible = c("legendonly", "legendonly", TRUE, "legendonly", 
+                                     "legendonly", "legendonly", "legendonly", "legendonly")))),
+      list(
+        label = "Eating Disorders",
+        method = "update",
+        args = list(list(visible = c("legendonly", "legendonly", "legendonly", TRUE, 
+                                     "legendonly", "legendonly", "legendonly", "legendonly")))),
+      list(
+        label = "Anxiety Disorders",
+        method = "update",
+        args = list(list(visible = c("legendonly", "legendonly", "legendonly", "legendonly", 
+                                     TRUE, "legendonly", "legendonly", "legendonly")))), 
+            
+      list(
+        label = "Drug Use Disorders",
+        method = "update",
+        args = list(list(visible = c("legendonly", "legendonly", "legendonly", "legendonly", 
+                                    "legendonly", TRUE, "legendonly", "legendonly")))), 
+      
+      list(
+        label = "Depression",
+        method = "update",
+        args = list(list(visible = c("legendonly", "legendonly", "legendonly", "legendonly", 
+                                     "legendonly", "legendonly", TRUE, "legendonly")))), 
+      
+     list(
+        label = "Alcohol Use Disorders",
+        method = "update",
+        args = list(list(visible = c("legendonly", "legendonly", "legendonly", "legendonly", 
+                                    "legendonly", "legendonly", "legendonly", TRUE)))) 
+    )
+  )
+)
+
+p1 <- plot_ly(data = disorders_australia) %>%
+
+  add_lines(x=~Year, y=~Prevalence_both_genders, name = "All Disorders", visible = "TRUE") %>%
+  add_lines(x=~Year, y=~Schizophrenia, name = "Schizophrenia", visible = "legendonly") %>%
+  add_lines(x=~Year, y=~Bipolar_disorder, name = "Bipolar Disorder", visible = "legendonly") %>%
+  add_lines(x=~Year, y=~Eating_disorders, name = "Eating Disorders", visible = "legendonly") %>%
+  add_lines(x=~Year, y=~Anxiety_disorders, name = "Anxiety Disorders", visible = "legendonly") %>%
+  add_lines(x=~Year, y=~Drug_use_disorders, name = "Drug Use Disorders", visible = "legendonly") %>%
+  add_lines(x=~Year, y=~Depression, name = "Depression", visible = "legendonly") %>%
+  add_lines(x=~Year, y=~Alcohol_use_disorders, name = "Alcohol Use Disorders", visible = "legendonly") %>%
+  
+  layout(showlegend=TRUE,
+         yaxis = list(zeroline = FALSE, titlefont = list(size = 10), title = "Percentage of population affected"),
+         xaxis = list(zeroline = FALSE, titlefont = list(size = 10), title = "Year"),
+         updatemenus=updatemenus)
+
+ggplotly(p1)
+
+```
+
+Row {data-height=450}
+-----------------------------------------------------------------------
+
+### Percentage of Population Affected by a Disorder in Australia, Averaged Over Period 1990-2017 and Split by Gender
+
+```{r}
+
+mean_shares <- all_disorders_by_gender_aus %>% summarise_if(is.numeric, mean)
+mean_shares <- mean_shares[, !(names(mean_shares) %in% c("Year"))]
+
+mean_shares_clean <- data.frame("Disorder" = c("Anxiety", "Bipolar Disorder", "Depression", "Eating Disorder", "Schizophrenia"),
+                                "Share_males" = c(4.87807, 1.076841, 3.766664, 0.4537993, 0.384433),
+                                "Share_females" = c(8.158557, 1.206255, 5.790347, 1.214825, 0.3450689))
+
+# source: [2] "Dumbbell Plots", Plotly.com. [Online]. Available: https://plotly.com/r/dumbbell-plots/. [Accessed: 12- Jun- 2020].
+
+p3 <- plot_ly(mean_shares_clean, color = I("gray80")) %>% 
+  
+  add_segments(x = ~Share_females, xend = ~Share_males, y = ~Disorder, yend = ~Disorder, showlegend = FALSE) %>% 
+  
+  add_markers(x = ~Share_females, y = ~Disorder, name = "Women", color = I("pink")) %>% 
+  
+  add_markers(x = ~Share_males, y = ~Disorder, name = "Men", color = I("blue")) %>% 
+  
+  layout(
+    title = list(titlefont = list(size = 12), title = "Percentage of population affected by a \ndisorder, averaged over period 1990-2017 and split by gender"),
+    #yaxis = list(titlefont = list(size = 25), title = "test")),
+    xaxis = list(titlefont = list(size = 10), title = "Average percentage"),
+    yaxis = list(titlefont = list(size = 10), title = "Disorder"),
+    margin = list(l = 65)
+  )
+
+p3
+
+```
+
+
+### Rate of Suicide Death for Australians Affected by Disorders Between 1990 and 2017
+
+```{r}
+
+suicide_rates_australia <- suicide_rates_after1990 %>% filter(Country == "Australia")
+suicide_rates_australia_new_rate <- suicide_rates_australia %>% mutate(Suicide_death_per_disorder_prevalence = ((Suicide_rate_deaths_per_100k/Mental_and_substance_disorder_per_100k) * Total_population)/100000)
+
+p2 <- plot_ly(data = suicide_rates_australia_new_rate) %>% 
+  
+  add_trace(x = ~Year, y = ~Suicide_death_per_disorder_prevalence, mode = "lines", color = I("firebrick")) %>%
+  
+  layout(yaxis = list(zeroline = FALSE, titlefont = list(size = 10), title = "Rate of Suicide Death"),
+         xaxis = list(zeroline = FALSE, titlefont = list(size = 10), title = "Year"))
+
+ggplotly(p2)
+
+```
+
+
+```{r}
+deployApp(appDir = getwd(), appName = "mental-health-australia")
+```
